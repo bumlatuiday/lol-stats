@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thống kê LMHT cuối tuần</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1c25; --panel:#162833; --line:#2a4350; --text:#ebe6d8; --muted:#92a6b0;
+  --gold:#d9b86c; --red:#e57c68; --teal:#6cc4c0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Be Vietnam Pro",system-ui,sans-serif;line-height:1.5}
+main{max-width:980px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:clamp(1.7rem,4vw,2.4rem);font-weight:800;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:1.15rem;font-weight:700;margin:0 0 12px}
+p.sub{margin:0 0 20px;color:var(--muted)}
+.bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+select,input[type=date],input[type=number],button{font:inherit;color:var(--text)}
+select,input[type=date]{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--gold)}
+button.primary{background:var(--gold);color:#1b1608;border-color:var(--gold);font-weight:700}
+button.danger{color:var(--red);padding:4px 10px}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.boards{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px;margin-bottom:32px}
+.board{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;border-top:4px solid var(--c)}
+.board.dmg{--c:var(--gold)} .board.taken{--c:var(--red)} .board.sup{--c:var(--teal)}
+.board h2{color:var(--c)}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;margin-bottom:10px}
+.row .name{font-weight:500}
+.row .n{font-weight:800;font-variant-numeric:tabular-nums}
+.row .track{grid-column:1/-1;height:6px;background:#0f1c25;border-radius:3px;overflow:hidden}
+.row .fill{height:100%;background:var(--c);border-radius:3px}
+.row.top .name{color:var(--c);font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:24px}
+.empty{color:var(--muted);margin:4px 0}
+.prow{display:grid;grid-template-columns:150px repeat(4,1fr);gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.prow:last-child{border-bottom:0}
+.prow label.pn{display:flex;gap:8px;align-items:center;font-weight:500;cursor:pointer}
+.prow input[type=number]{width:100%;background:#0f1c25;border:1px solid var(--line);border-radius:6px;padding:7px 8px}
+.prow input:disabled{opacity:.35}
+.prow.head{color:var(--muted);font-size:.85rem;border-bottom:1px solid var(--line)}
+.hint{color:var(--muted);font-size:.9rem;margin:10px 0 0}
+.err{color:var(--red);margin:10px 0 0;min-height:1.4em}
+.match{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.match:last-child{border-bottom:0}
+.match b{font-weight:700}
+.match small{display:block;color:var(--muted)}
+.tools{display:flex;gap:10px;flex-wrap:wrap}
+@media (max-width:700px){
+  .prow{grid-template-columns:1fr 1fr;}
+  .prow.head{display:none}
+  .prow label.pn{grid-column:1/-1}
+  .prow input[type=number]::placeholder{font-size:.8rem}
+}
+@media (prefers-reduced-motion:no-preference){.fill{transition:width .4s}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Thống kê LMHT cuối tuần</h1>
+  <p class="sub">Mỗi trận, người đứng đầu từng hạng mục được cộng 1 điểm vào bảng của tuần.</p>
+
+  <div class="bar">
+    <label for="week">Tuần</label>
+    <select id="week"></select>
+    <button id="copy">Sao chép bảng xếp hạng</button>
+    <span id="copied" class="empty" aria-live="polite"></span>
+  </div>
+
+  <section class="boards" id="boards" aria-label="Bảng xếp hạng tuần"></section>
+
+  <section class="panel">
+    <h2>Nhập trận mới</h2>
+    <div class="bar">
+      <label for="date">Ngày chơi</label>
+      <input type="date" id="date">
+    </div>
+    <div id="form"></div>
+    <p class="hint">Tick tên những người có chơi trong trận, rồi nhập 4 chỉ số trong bảng thống kê cuối trận. Hồi máu và tạo giáp được cộng lại thành một hạng mục.</p>
+    <p class="err" id="err" role="alert"></p>
+    <button class="primary" id="save">Lưu trận</button>
+  </section>
+
+  <section class="panel">
+    <h2>Các trận trong tuần</h2>
+    <div id="matches"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Sao lưu dữ liệu</h2>
+    <p class="hint" style="margin-top:0">Dữ liệu được lưu trong trình duyệt của bạn. Hãy xuất file sao lưu thỉnh thoảng, và nhập lại nếu đổi máy hoặc xóa dữ liệu trình duyệt.</p>
+    <div class="tools" style="margin-top:12px">
+      <button id="export">Xuất dữ liệu</button>
+      <button id="importBtn">Nhập dữ liệu</button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </section>
+</main>
+
+<script>
+const PLAYERS = ["Bum","VTD","Xeomeoheo","Bé Rin","Tiada","Chxng","E.Hải"];
+const CATS = [
+  {id:"dmg",   cls:"dmg",   title:"Gây sát thương nhiều nhất",   val:p=>p.dmg},
+  {id:"taken", cls:"taken", title:"Chịu sát thương nhiều nhất",  val:p=>p.taken},
+  {id:"sup",   cls:"sup",   title:"Hồi máu + tạo giáp nhiều nhất", val:p=>p.heal+p.shield}
+];
+const KEY = "lmht-stats-v1";
+const $ = id => document.getElementById(id);
+
+let matches = load();
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ return []; } }
+function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(matches)); }catch(e){} }
+
+const pad = n => String(n).padStart(2,"0");
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+function weekStart(s){
+  const d = new Date(s+"T00:00:00");
+  d.setDate(d.getDate() - ((d.getDay()+6)%7));
+  return iso(d);
+}
+function weekLabel(ws){
+  const a = new Date(ws+"T00:00:00"), b = new Date(a); b.setDate(b.getDate()+6);
+  const f = d => pad(d.getDate())+"/"+pad(d.getMonth()+1);
+  return f(a)+" – "+f(b);
+}
+const fmtDate = s => { const [y,m,d]=s.split("-"); return d+"/"+m+"/"+y; };
+
+function winners(match, cat){
+  let best = 0, names = [];
+  for(const [n,p] of Object.entries(match.players)){
+    const v = cat.val(p);
+    if(v>best){ best=v; names=[n]; } else if(v===best && v>0){ names.push(n); }
+  }
+  return names;
+}
+
+function weeks(){
+  const set = new Set(matches.map(m=>weekStart(m.date)));
+  set.add(weekStart(iso(new Date())));
+  return [...set].sort().reverse();
+}
+function fillWeeks(selected){
+  const ws = weeks();
+  $("week").innerHTML = ws.map(w=>`<option value="${w}">${weekLabel(w)}</option>`).join("");
+  $("week").value = ws.includes(selected) ? selected : ws[0];
+}
+const inWeek = () => matches.filter(m=>weekStart(m.date)===$("week").value).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+
+function tally(list){
+  return CATS.map(cat=>{
+    const c = Object.fromEntries(PLAYERS.map(n=>[n,0]));
+    list.forEach(m=>winners(m,cat).forEach(n=>c[n]++));
+    const rows = PLAYERS.map(n=>({n,c:c[n]})).sort((a,b)=>b.c-a.c);
+    return {cat,rows};
+  });
+}
+
+function render(){
+  const list = inWeek();
+  const t = tally(list);
+  $("boards").innerHTML = t.map(({cat,rows})=>{
+    const max = Math.max(1, rows[0].c);
+    return `<div class="board ${cat.cls}"><h2>${cat.title}</h2>`+
+      rows.map(r=>`<div class="row ${r.c>0&&r.c===rows[0].c?"top":""}">
+        <span class="name">${r.n}</span><span class="n">${r.c}</span>
+        <div class="track"><div class="fill" style="width:${r.c/max*100}%"></div></div></div>`).join("")+`</div>`;
+  }).join("");
+
+  $("matches").innerHTML = list.length ? list.map(m=>{
+    const lines = CATS.map(c=>{ const w=winners(m,c); return w.length?`${c.title.split(" ")[0]} ${c.id==="sup"?"hỗ trợ":""}`.trim()+": "+w.join(", "):""; }).filter(Boolean);
+    return `<div class="match"><div><b>${fmtDate(m.date)}</b> · ${Object.keys(m.players).length} người chơi
+      <small>Sát thương: ${winners(m,CATS[0]).join(", ")||"–"} · Chịu đòn: ${winners(m,CATS[1]).join(", ")||"–"} · Hỗ trợ: ${winners(m,CATS[2]).join(", ")||"–"}</small></div>
+      <button class="danger" data-del="${m.id}">Xóa</button></div>`;
+  }).join("") : `<p class="empty">Chưa có trận nào trong tuần này. Nhập trận ở phần trên.</p>`;
+}
+
+function buildForm(){
+  $("form").innerHTML =
+    `<div class="prow head"><span>Người chơi</span><span>Sát thương gây ra</span><span>Sát thương nhận</span><span>Hồi máu</span><span>Tạo giáp</span></div>`+
+    PLAYERS.map((n,i)=>`<div class="prow" data-i="${i}">
+      <label class="pn"><input type="checkbox" data-chk="${i}"> ${n}</label>
+      ${["dmg","taken","heal","shield"].map((k,j)=>`<input type="number" min="0" inputmode="numeric" disabled data-k="${k}" placeholder="${["Sát thương gây ra","Sát thương nhận","Hồi máu","Tạo giáp"][j]}" aria-label="${n}: ${["sát thương gây ra","sát thương nhận","hồi máu","tạo giáp"][j]}">`).join("")}
+    </div>`).join("");
+}
+$("form").addEventListener("change", e=>{
+  const i = e.target.dataset.chk;
+  if(i===undefined) return;
+  e.target.closest(".prow").querySelectorAll("input[type=number]").forEach(x=>x.disabled=!e.target.checked);
+});
+
+$("save").addEventListener("click", ()=>{
+  const date = $("date").value;
+  const players = {};
+  document.querySelectorAll(".prow[data-i]").forEach(row=>{
+    if(!row.querySelector("[data-chk]").checked) return;
+    const o = {};
+    row.querySelectorAll("[data-k]").forEach(x=>o[x.dataset.k]=Math.max(0,Number(x.value)||0));
+    players[PLAYERS[row.dataset.i]] = o;
+  });
+  if(!date){ $("err").textContent="Chọn ngày chơi trước khi lưu."; return; }
+  if(Object.keys(players).length<2){ $("err").textContent="Tick ít nhất 2 người chơi trong trận."; return; }
+  $("err").textContent="";
+  matches.push({id:Date.now(), date, players});
+  persist();
+  buildForm();
+  fillWeeks(weekStart(date));
+  render();
+  window.scrollTo({top:0,behavior:"smooth"});
+});
+
+$("matches").addEventListener("click", e=>{
+  const id = e.target.dataset.del;
+  if(!id || !confirm("Xóa trận này?")) return;
+  matches = matches.filter(m=>String(m.id)!==id);
+  persist(); fillWeeks($("week").value); render();
+});
+$("week").addEventListener("change", render);
+
+$("copy").addEventListener("click", async ()=>{
+  const t = tally(inWeek());
+  const txt = "Bảng xếp hạng LMHT tuần "+weekLabel($("week").value)+"\n\n"+
+    t.map(({cat,rows})=>cat.title+":\n"+rows.filter(r=>r.c>0).map((r,i)=>`${i+1}. ${r.n} (${r.c})`).join("\n")).join("\n\n");
+  try{ await navigator.clipboard.writeText(txt); $("copied").textContent="Đã sao chép."; }
+  catch(e){ prompt("Sao chép nội dung bên dưới:", txt); }
+  setTimeout(()=>$("copied").textContent="",2500);
+});
+
+$("export").addEventListener("click", ()=>{
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(matches,null,2)],{type:"application/json"}));
+  a.download = "lmht-stats-"+iso(new Date())+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$("importBtn").addEventListener("click", ()=>$("importFile").click());
+$("importFile").addEventListener("change", e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const d = JSON.parse(r.result);
+      if(!Array.isArray(d)) throw 0;
+      if(!confirm("Dữ liệu hiện tại sẽ bị thay bằng file này. Tiếp tục?")) return;
+      matches = d; persist(); fillWeeks(); render();
+    }catch(err){ alert("File không đúng định dạng."); }
+  };
+  r.readAsText(f); e.target.value="";
+});
+
+$("date").value = iso(new Date());
+buildForm(); fillWeeks(); render();
+</script>
+</body>
+</html>
